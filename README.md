@@ -1,5 +1,5 @@
-PixelCanvas.io exporter
-=======================
+PixelCanvas.io downloader
+=========================
 
 This utility lets you download the http://pixelcanvas.io bitmap and export regions of it to .png files.
 
