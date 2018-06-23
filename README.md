@@ -27,8 +27,20 @@ Commands:
     update:
         Download chunks into the database.
 
+        > pixelcanvas.py update ~100.~100--100.100
+
     render:
         Export an image as PNG.
+
+        > pixelcanvas.py render 0.0--100.100 <flags>
+
+        flags:
+        --show:
+            Instead of saving the image, display it on the screen.
+            https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.show
+
+        --update:
+            Update the chunks before exporting them.
 
 So, for example:
 
