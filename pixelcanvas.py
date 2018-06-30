@@ -119,6 +119,11 @@ render:
     > pixelcanvas.py render 0.0--100.100 <flags>
 
     flags:
+    --scale <float>:
+        Render the image at a different scale.
+        For best results, use powers of 2 like 0.5, 0.25, etc.
+        This will disable the autocropping.
+
     --show:
         Instead of saving the image, display it on the screen.
         https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.show
@@ -343,10 +348,14 @@ def rgb_to_image(matrix):
     i = PIL.Image.frombytes(mode='RGB', size=(CHUNK_SIZE_PIX, CHUNK_SIZE_PIX), data=matrix)
     return i
 
-def chunk_to_image(chunk_data):
-    return rgb_to_image(chunk_to_rgb(chunk_data))
+def chunk_to_image(chunk_data, scale=1):
+    image = rgb_to_image(chunk_to_rgb(chunk_data))
+    if scale is not None and scale != 1:
+        new_size = (int(image.size[0] * scale), int(image.size[1] * scale))
+        image = image.resize(new_size, resample=PIL.Image.ANTIALIAS)
+    return image
 
-def chunks_to_image(chunks):
+def chunks_to_image(chunks, scale=1):
     '''
     Combine all of the given chunks into a single image.
     '''
@@ -357,13 +366,13 @@ def chunks_to_image(chunks):
     max_y = max(chunk[1] for chunk in chunks)
     span_x = max_x - min_x + 1
     span_y = max_y - min_y + 1
-    img_width = span_x * CHUNK_SIZE_PIX
-    img_height = span_y * CHUNK_SIZE_PIX
+    img_width = int(span_x * CHUNK_SIZE_PIX * scale)
+    img_height = int(span_y * CHUNK_SIZE_PIX * scale)
     img = PIL.Image.new(mode='RGB', size=(img_width, img_height), color=WHITE)
     for (chunk_x, chunk_y, chunk_data) in chunks:
-        paste_x = (chunk_x - min_x) * CHUNK_SIZE_PIX
-        paste_y = (chunk_y - min_y) * CHUNK_SIZE_PIX
-        chunk_image = chunk_to_image(chunk_data)
+        paste_x = int((chunk_x - min_x) * CHUNK_SIZE_PIX * scale)
+        paste_y = int((chunk_y - min_y) * CHUNK_SIZE_PIX * scale)
+        chunk_image = chunk_to_image(chunk_data, scale)
         img.paste(chunk_image, (paste_x, paste_y))
     return img
 
@@ -392,7 +401,7 @@ def crop_image(image, pixel_xy1, pixel_xy2):
 ####################################################################################################
 
 
-def parse_coordinates(coordinates):
+def parse_coordinate_string(coordinates):
     '''
     Convert the given '~100.~100--100.100' to ((-100, -100), (100, 100)).
     '''
@@ -416,20 +425,26 @@ def parse_coordinates(coordinates):
 def render_argparse(args):
     if args.do_update:
         update_argparse(args)
-    coordinates = parse_coordinates(args.coordinates)
+    coordinates = parse_coordinate_string(args.coordinates)
     chunk_range = pixel_range_to_chunk_range(*coordinates)
     chunks = [get_chunk(*chunk_xy) for chunk_xy in chunk_range_iterator(*chunk_range)]
-    image = chunks_to_image(chunks)
-    image = crop_image(image, *coordinates)
+    scale = float(args.scale)
+    image = chunks_to_image(chunks, scale=scale)
+    if scale == 1:
+        image = crop_image(image, *coordinates)
     if args.do_show:
         image.show()
     else:
-        filename = f'{coordinates[0][0]}.{coordinates[0][1]}--{coordinates[1][0]}.{coordinates[1][1]}.png'
+        (p1, p2) = coordinates
+        (p1x, p1y) = p1
+        (p2x, p2y) = p2
+        scale_s = f'_{scale}' if scale != 1 else ''
+        filename = f'{p1x}.{p1y}--{p2x}.{p2y}{scale_s}.png'
         image.save(filename)
         log.debug('Wrote %s', filename)
 
 def update_argparse(args):
-    coordinates = parse_coordinates(args.coordinates)
+    coordinates = parse_coordinate_string(args.coordinates)
     bigchunk_range = pixel_range_to_bigchunk_range(*coordinates)
     download_bigchunk_range(*bigchunk_range)
 
@@ -445,6 +460,7 @@ p_render = subparsers.add_parser('render')
 p_render.add_argument('coordinates')
 p_render.add_argument('--update', dest='do_update', action='store_true')
 p_render.add_argument('--show', dest='do_show', action='store_true')
+p_render.add_argument('--scale', dest='scale', default=1)
 p_render.set_defaults(func=render_argparse)
 
 def main(argv):
