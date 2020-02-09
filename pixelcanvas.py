@@ -69,100 +69,25 @@ BIGCHUNK_SIZE_BYTES = int(BIGCHUNK_SIZE_PIX * (BIGCHUNK_SIZE_PIX / 2))
 ORIGIN_OFFSET_X = 448
 ORIGIN_OFFSET_Y = 448
 
+DB_INIT = '''
+BEGIN;
+CREATE TABLE IF NOT EXISTS chunks (x INT, y INT, data BLOB, updated_at REAL);
+CREATE INDEX IF NOT EXISTS chunks_x_y ON chunks(x, y);
+COMMIT;
+'''
+
 sql = sqlite3.connect('pixelcanvas.db')
 cur = sql.cursor()
-cur.execute('CREATE TABLE IF NOT EXISTS chunks (x INT, y INT, data BLOB, updated_at REAL)')
-cur.execute('CREATE INDEX IF NOT EXISTS chunks_x_y ON chunks(x, y)')
+cur.executescript(DB_INIT)
 
+# HELPER FUNCTIONS
+################################################################################
+def now():
+    n = datetime.datetime.now(datetime.timezone.utc)
+    return n.timestamp()
 
-DOCSTRING = '''
-This tool is run from the command line, where you provide the coordinates you
-want to download and render.
-
-The format for typing coordinates is `UPPERLEFT--LOWERRIGHT`. The format for
-each of those pieces is `X.Y`.
-
-Sometimes, argparse gets confused by negative coordinates because it thinks
-you're trying to provide another argument. Sorry.
-If this happens, use a tilde `~` as the negative sign instead.
-
-Remember, because this is an image, up and left are negative;
-down and right are positive.
-
-Commands:
-{update}
-{render}
-
-So, for example:
-
-    > pixelcanvas.py update 0.0--100.100
-    > pixelcanvas.py update ~100.~100--100.100
-    > pixelcanvas.py update ~1200.300--~900.600
-
-    > pixelcanvas.py render 0.0--100.100
-    > pixelcanvas.py render ~100.~100--100.100 --update
-    > pixelcanvas.py render ~1200.300--~900.600 --show
-'''
-
-MODULE_DOCSTRINGS = {
-    'update': '''
-update:
-    Download chunks into the database.
-
-    > pixelcanvas.py update ~100.~100--100.100
-''',
-
-    'render': '''
-render:
-    Export an image as PNG.
-
-    > pixelcanvas.py render 0.0--100.100 <flags>
-
-    flags:
-    --scale <float>:
-        Render the image at a different scale.
-        For best results, use powers of 2 like 0.5, 0.25, etc.
-        This will disable the autocropping.
-
-    --show:
-        Instead of saving the image, display it on the screen.
-        https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.show
-
-    --update:
-        Update the chunks before exporting them.
-'''
-}
-
-def docstring_preview(text):
-    '''
-    Return the brief description at the top of the text.
-    User can get full text by looking at each specifically.
-    '''
-    return text.split('\n\n')[0]
-
-def listget(li, index, fallback=None):
-    try:
-        return li[index]
-    except IndexError:
-        return fallback
-
-def indent(text, spaces=4):
-    spaces = ' ' * spaces
-    return '\n'.join(spaces + line if line.strip() != '' else line for line in text.split('\n'))
-
-docstring_headers = {
-    key: indent(docstring_preview(value))
-    for (key, value) in MODULE_DOCSTRINGS.items()
-}
-
-DOCSTRING = DOCSTRING.format(**docstring_headers)
-
-
-####################################################################################################
-##================================================================================================##
-####################################################################################################
-
-
+# DB FUNCTIONS
+################################################################################
 def get_chunk_from_db(chunk_x, chunk_y):
     '''
     Get the chunk from the database, and raise IndexError if it doesn't exist.
@@ -177,7 +102,7 @@ def get_chunk_from_db(chunk_x, chunk_y):
     cur.execute(query, bindings)
     fetch = cur.fetchone()
     if fetch is None:
-        raise IndexError
+        raise IndexError(f'{chunk_x}, {chunk_y}')
     (x, y, data) = fetch
     data = gzip.decompress(data)
     return (x, y, data)
@@ -207,14 +132,23 @@ def insert_chunk(chunk_x, chunk_y, data, commit=True):
     if commit:
         sql.commit()
 
+# API FUNCTIONS
+################################################################################
+def url_for_bigchunk(bigchunk_x, bigchunk_y):
+    return f'http://api.pixelcanvas.io/api/bigchunk/{bigchunk_x}.{bigchunk_y}.bmp'
+
+def request(url):
+    response = requests.get(url)
+    response.raise_for_status()
+    return response
+
 def download_bigchunk(bigchunk_x, bigchunk_y):
     '''
     Download a bigchunk into the database, and return the list of chunks.
     '''
     url = url_for_bigchunk(bigchunk_x, bigchunk_y)
     logging.info('Downloading %s', url)
-    response = requests.get(url)
-    response.raise_for_status()
+    response = request(url)
     bigchunk_data = response.content
     if len(bigchunk_data) != BIGCHUNK_SIZE_BYTES:
         message = 'Received bigchunk does not matched the expected byte size!\n'
@@ -228,7 +162,8 @@ def download_bigchunk(bigchunk_x, bigchunk_y):
 
 def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2):
     '''
-    Download multiple bigchunks, and return the total list of chunks.
+    Given (UPPERLEFT_X, UPPERLEFT_Y), (LOWERRIGHT_X, LOWERRIGHT_Y),
+    download multiple bigchunks, and return the total list of small chunks.
     '''
     chunks = []
     for (x, y) in bigchunk_range_iterator(bigchunk_xy1, bigchunk_xy2):
@@ -236,16 +171,12 @@ def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2):
         chunks.extend(bigchunk)
     return chunks
 
-def url_for_bigchunk(bigchunk_x, bigchunk_y):
-    return f'http://pixelcanvas.io/api/bigchunk/{bigchunk_x}.{bigchunk_y}.bmp'
-
-def now():
-    n = datetime.datetime.now(datetime.timezone.utc)
-    return n.timestamp()
-
+# CHUNK FUNCTIONS
+################################################################################
 def chunk_range_iterator(chunk_xy1, chunk_xy2):
     '''
-    Yield (x, y) pairs for chunks in this range, inclusive.
+    Given (UPPERLEFT_X, UPPERLEFT_Y), (LOWERRIGHT_X, LOWERRIGHT_Y),
+    yield (x, y) pairs for chunks in this range, inclusive.
     '''
     for x in range(chunk_xy1[0], chunk_xy2[0] + 1):
         for y in range(chunk_xy1[1], chunk_xy2[1] + 1):
@@ -253,7 +184,8 @@ def chunk_range_iterator(chunk_xy1, chunk_xy2):
 
 def bigchunk_range_iterator(bigchunk_xy1, bigchunk_xy2):
     '''
-    Yield (x, y) pairs for bigchunks in this range, inclusive.
+    Given (UPPERLEFT_X, UPPERLEFT_Y), (LOWERRIGHT_X, LOWERRIGHT_Y),
+    yield (x, y) pairs for bigchunks in this range, inclusive.
     '''
     for x in range(bigchunk_xy1[0], bigchunk_xy2[0] + BIGCHUNK_SIZE_CHUNKS, BIGCHUNK_SIZE_CHUNKS):
         for y in range(bigchunk_xy1[1], bigchunk_xy2[1] + BIGCHUNK_SIZE_CHUNKS, BIGCHUNK_SIZE_CHUNKS):
@@ -265,11 +197,19 @@ def chunk_to_bigchunk(chunk_x, chunk_y):
     # log.debug('Converted chunk %s, %s to bigchunk %s, %s', chunk_x, chunk_y, bigchunk_x, bigchunk_y)
     return (bigchunk_x, bigchunk_y)
 
+def chunk_range_to_bigchunk_range(chunk_xy1, chunk_xy2):
+    bigchunk_range = (chunk_to_bigchunk(*chunk_xy1), chunk_to_bigchunk(*chunk_xy2))
+    return bigchunk_range
+
 def chunk_to_pixel(chunk_x, chunk_y):
     pixel_x = chunk_x * CHUNK_SIZE_PIX - ORIGIN_OFFSET_X
     pixel_y = chunk_y * CHUNK_SIZE_PIX - ORIGIN_OFFSET_Y
     # log.debug('Converted chunk %s, %s to pixel %s, %s', chunk_x, chunk_y, pixel_x, pixel_y)
     return (pixel_x, pixel_y)
+
+def chunk_range_to_pixel_range(chunk_xy1, chunk_xy2):
+    pixel_range = (chunk_to_pixel(*chunk_xy1), chunk_to_pixel(*chunk_xy2))
+    return pixel_range
 
 def pixel_to_chunk(pixel_x, pixel_y):
     chunk_x = (pixel_x + ORIGIN_OFFSET_X) // CHUNK_SIZE_PIX
@@ -279,7 +219,7 @@ def pixel_to_chunk(pixel_x, pixel_y):
 
 def pixel_range_to_chunk_range(pixel_xy1, pixel_xy2):
     chunk_range = (pixel_to_chunk(*pixel_xy1), pixel_to_chunk(*pixel_xy2))
-    log.debug('Converted pixel range %s, %s to chunk range %s, %s', pixel_xy1, pixel_xy2, *chunk_range)
+    # log.debug('Converted pixel range %s, %s to chunk range %s, %s', pixel_xy1, pixel_xy2, *chunk_range)
     return chunk_range
 
 def pixel_to_bigchunk(pixel_x, pixel_y):
@@ -290,7 +230,7 @@ def pixel_to_bigchunk(pixel_x, pixel_y):
 
 def pixel_range_to_bigchunk_range(pixel_xy1, pixel_xy2):
     bigchunk_range = (pixel_to_bigchunk(*pixel_xy1), pixel_to_bigchunk(*pixel_xy2))
-    log.debug('Converted pixel range %s, %s to bigchunk range %s, %s', pixel_xy1, pixel_xy2, *bigchunk_range)
+    # log.debug('Converted pixel range %s, %s to bigchunk range %s, %s', pixel_xy1, pixel_xy2, *bigchunk_range)
     return bigchunk_range
 
 def split_bigchunk(bigchunk_x, bigchunk_y, bigchunk_data):
@@ -320,6 +260,8 @@ def split_bigchunk(bigchunk_x, bigchunk_y, bigchunk_data):
         chunks.append(chunk)
     return chunks
 
+# IMAGE FUNCTIONS
+################################################################################
 def chunk_to_rgb(chunk_data):
     '''
     Convert the data chunk into RGB tuples.
@@ -395,11 +337,85 @@ def crop_image(image, pixel_xy1, pixel_xy2):
     image = image.crop(bbox)
     return image
 
+# COMMAND LINE
+################################################################################
+from voussoirkit import betterhelp
 
-####################################################################################################
-##================================================================================================##
-####################################################################################################
+DOCSTRING = '''
+This tool is run from the command line, where you provide the coordinates you
+want to download and render.
 
+The format for typing coordinates is `UPPERLEFT--LOWERRIGHT`. The format for
+each of those pieces is `X.Y`.
+
+Sometimes, argparse gets confused by negative coordinates because it thinks
+you're trying to provide another argument. Sorry.
+If this happens, use a tilde `~` as the negative sign instead.
+
+Remember, because this is an image, up and left are negative;
+down and right are positive.
+
+Commands:
+
+{update}
+
+{render}
+
+So, for example:
+
+    > pixelcanvas.py update 0.0--100.100
+    > pixelcanvas.py update ~100.~100--100.100
+    > pixelcanvas.py update ~1200.300--~900.600
+
+    > pixelcanvas.py render 0.0--100.100
+    > pixelcanvas.py render ~100.~100--100.100 --update
+    > pixelcanvas.py render ~1200.300--~900.600 --show
+'''
+
+SUB_DOCSTRINGS = dict(
+overview='''
+overview:
+    Draw an ascii map representing the owned chunks.
+'''.strip(),
+
+update='''
+update:
+    Download chunks into the database.
+
+    > pixelcanvas.py update ~100.~100--100.100
+
+    flags:
+    --chunks:
+        The coordinates which you provided are chunk coordinates instead of
+        pixel coordinates.
+'''.strip(),
+
+render='''
+render:
+    Export an image as PNG.
+
+    > pixelcanvas.py render 0.0--100.100 <flags>
+
+    flags:
+    --chunks:
+        The coordinates which you provided are chunk coordinates instead of
+        pixel coordinates.
+
+    --scale <float>:
+        Render the image at a different scale.
+        For best results, use powers of 2 like 0.5, 0.25, etc.
+        This will disable the autocropping.
+
+    --show:
+        Instead of saving the image, display it on the screen.
+        https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.show
+
+    --update:
+        Update the chunks before exporting them.
+'''.strip(),
+)
+
+DOCSTRING = betterhelp.add_previews(DOCSTRING, SUB_DOCSTRINGS)
 
 def parse_coordinate_string(coordinates):
     '''
@@ -409,6 +425,7 @@ def parse_coordinate_string(coordinates):
     if '--' in coordinates:
         (xy1, xy2) = coordinates.split('--', 1)
     else:
+        # If you are only updating a single chunk.
         xy1 = coordinates
         xy2 = coordinates
 
@@ -419,25 +436,63 @@ def parse_coordinate_string(coordinates):
         return (int(x), int(y))
 
     (xy1, xy2) = (split_xy(xy1), split_xy(xy2))
-    # log.debug('Parsed coordinates %s into %s %s', coordinates, xy1, xy2)
+    log.debug('Parsed coordinates %s into %s %s', coordinates, xy1, xy2)
     return (xy1, xy2)
+
+def overview_argparse(args):
+    cur.execute('SELECT x, y, updated_at FROM chunks GROUP BY x, y ORDER BY updated_at DESC')
+    chunks = cur.fetchall()
+    min_x = min(chunk[0] for chunk in chunks)
+    max_x = max(chunk[0] for chunk in chunks)
+    min_y = min(chunk[1] for chunk in chunks)
+    max_y = max(chunk[1] for chunk in chunks)
+    width = max_x - min_x + 1
+    height = max_y - min_y + 1
+    x_offset = abs(min(min_x, 0))
+    y_offset = abs(min(min_y, 0))
+
+    matrix = [[' ' for x in range(width)] for y in range(height)]
+    for (x, y, updated_at) in chunks:
+        x += x_offset
+        y += y_offset
+        matrix[y][x] = '.'
+
+    for (x, y, updated_at) in chunks:
+        if (x % 15 == 0) and (y % 15 == 0):
+            text = f'{x},{y}'
+            x += x_offset
+            y += y_offset
+            for c in text:
+                matrix[y][x] = c
+                x+=1
+
+    for row in matrix:
+        for column in row:
+            print(column, end='')
+        print()
 
 def render_argparse(args):
     if args.do_update:
         update_argparse(args)
+
     coordinates = parse_coordinate_string(args.coordinates)
-    chunk_range = pixel_range_to_chunk_range(*coordinates)
+    if args.is_chunks:
+        chunk_range = coordinates
+        coordinates = chunk_range_to_pixel_range(*coordinates)
+    else:
+        chunk_range = pixel_range_to_chunk_range(*coordinates)
+
     chunks = [get_chunk(*chunk_xy) for chunk_xy in chunk_range_iterator(*chunk_range)]
     scale = float(args.scale)
     image = chunks_to_image(chunks, scale=scale)
+
     if scale == 1:
         image = crop_image(image, *coordinates)
+
     if args.do_show:
         image.show()
     else:
-        (p1, p2) = coordinates
-        (p1x, p1y) = p1
-        (p2x, p2y) = p2
+        ((p1x, p1y), (p2x, p2y)) = coordinates
         scale_s = f'_{scale}' if scale != 1 else ''
         filename = f'{p1x}.{p1y}--{p2x}.{p2y}{scale_s}.png'
         image.save(filename)
@@ -445,47 +500,35 @@ def render_argparse(args):
 
 def update_argparse(args):
     coordinates = parse_coordinate_string(args.coordinates)
-    bigchunk_range = pixel_range_to_bigchunk_range(*coordinates)
+    if args.is_chunks:
+        bigchunk_range = chunk_range_to_bigchunk_range(*coordinates)
+    else:
+        bigchunk_range = pixel_range_to_bigchunk_range(*coordinates)
     download_bigchunk_range(*bigchunk_range)
-
 
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers()
 
 p_update = subparsers.add_parser('update')
 p_update.add_argument('coordinates')
+p_update.add_argument('--chunks', dest='is_chunks', action='store_true')
 p_update.set_defaults(func=update_argparse)
 
 p_render = subparsers.add_parser('render')
 p_render.add_argument('coordinates')
+p_render.add_argument('--chunks', dest='is_chunks', action='store_true')
 p_render.add_argument('--update', dest='do_update', action='store_true')
 p_render.add_argument('--show', dest='do_show', action='store_true')
 p_render.add_argument('--scale', dest='scale', default=1)
 p_render.set_defaults(func=render_argparse)
 
+p_overview = subparsers.add_parser('overview')
+p_overview.set_defaults(func=overview_argparse)
+
+@betterhelp.subparser_betterhelp(parser, main_docstring=DOCSTRING, sub_docstrings=SUB_DOCSTRINGS)
 def main(argv):
-    helpstrings = {'', 'help', '-h', '--help'}
-
-    command = listget(argv, 0, '').lower()
-
-    # The user did not enter a command, or entered something unrecognized.
-    if command not in MODULE_DOCSTRINGS:
-        print(DOCSTRING)
-        if command == '':
-            print('You are seeing the default help text because you did not choose a command.')
-        elif command not in helpstrings:
-            print('You are seeing the default help text because "%s" was not recognized' % command)
-        return 1
-
-    # The user entered a command, but no further arguments, or just help.
-    argument = listget(argv, 1, '').lower()
-    if argument in helpstrings:
-        print(MODULE_DOCSTRINGS[command])
-        return 1
-
     args = parser.parse_args(argv)
-    args.func(args)
-    return 0
+    return args.func(args)
 
 if __name__ == '__main__':
     raise SystemExit(main(sys.argv[1:]))
