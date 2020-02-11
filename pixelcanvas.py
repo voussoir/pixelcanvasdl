@@ -88,17 +88,20 @@ def now():
 
 # DB FUNCTIONS
 ################################################################################
-def get_chunk_from_db(chunk_x, chunk_y):
+def get_chunk_from_db(chunk_x, chunk_y, as_of=None):
     '''
     Get the chunk from the database, and raise IndexError if it doesn't exist.
     '''
-    query = '''
+    query = f'''
     SELECT x, y, data FROM chunks
     WHERE x == ? AND y == ?
+    {'AND updated_at <= ?' if as_of is not None else ''}
     ORDER BY updated_at DESC
     LIMIT 1
     '''
     bindings = [chunk_x, chunk_y]
+    if as_of is not None:
+        bindings.append(as_of)
     cur.execute(query, bindings)
     fetch = cur.fetchone()
     if fetch is None:
@@ -107,16 +110,16 @@ def get_chunk_from_db(chunk_x, chunk_y):
     data = gzip.decompress(data)
     return (x, y, data)
 
-def get_chunk(chunk_x, chunk_y):
+def get_chunk(chunk_x, chunk_y, *args, **kwargs):
     '''
     Get the chunk from the database if it exists, or else download it.
     '''
     try:
-        return get_chunk_from_db(chunk_x, chunk_y)
+        return get_chunk_from_db(chunk_x, chunk_y, *args, **kwargs)
     except IndexError:
         (bigchunk_x, bigchunk_y) = chunk_to_bigchunk(chunk_x, chunk_y)
         download_bigchunk(bigchunk_x, bigchunk_y)
-        return get_chunk_from_db(chunk_x, chunk_y)
+        return get_chunk_from_db(chunk_x, chunk_y, *args, **kwargs)
 
 def insert_chunk(chunk_x, chunk_y, data, commit=True):
     try:
