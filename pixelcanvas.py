@@ -175,12 +175,15 @@ def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2, threads=1):
     download multiple bigchunks, and yield all of the small chunks.
     '''
     bigchunks = bigchunk_range_iterator(bigchunk_xy1, bigchunk_xy2)
+
     if threads < 1:
         raise ValueError(threads)
+
     if threads == 1:
         for (x, y) in bigchunks:
             chunks = download_bigchunk(x, y)
             yield from chunks
+
     else:
         pool = threadpool.ThreadPool(size=threads)
         jobs = []
