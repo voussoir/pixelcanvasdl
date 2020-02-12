@@ -118,7 +118,8 @@ def get_chunk(chunk_x, chunk_y, *args, **kwargs):
         return get_chunk_from_db(chunk_x, chunk_y, *args, **kwargs)
     except IndexError:
         (bigchunk_x, bigchunk_y) = chunk_to_bigchunk(chunk_x, chunk_y)
-        download_bigchunk(bigchunk_x, bigchunk_y)
+        chunks = download_bigchunk(bigchunk_x, bigchunk_y)
+        insert_chunks(chunks)
         return get_chunk_from_db(chunk_x, chunk_y, *args, **kwargs)
 
 def insert_chunk(chunk_x, chunk_y, data, commit=True):
@@ -135,6 +136,12 @@ def insert_chunk(chunk_x, chunk_y, data, commit=True):
     if commit:
         sql.commit()
 
+def insert_chunks(chunks, commit=True):
+    for chunk in chunks:
+        insert_chunk(*chunk, commit=False)
+    if commit:
+        sql.commit()
+
 # API FUNCTIONS
 ################################################################################
 def url_for_bigchunk(bigchunk_x, bigchunk_y):
@@ -147,7 +154,7 @@ def request(url):
 
 def download_bigchunk(bigchunk_x, bigchunk_y):
     '''
-    Download a bigchunk into the database, and return the list of chunks.
+    Download a bigchunk and return the list of chunks.
     '''
     url = url_for_bigchunk(bigchunk_x, bigchunk_y)
     logging.info('Downloading %s', url)
@@ -158,9 +165,6 @@ def download_bigchunk(bigchunk_x, bigchunk_y):
         message += 'Got %d instead of %d' % (len(bigchunk_data), BIGCHUNK_SIZE_BYTES)
         raise ValueError(message)
     chunks = split_bigchunk(bigchunk_x, bigchunk_y, bigchunk_data)
-    for chunk in chunks:
-        insert_chunk(*chunk, commit=False)
-    sql.commit()
     return chunks
 
 def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2):
@@ -439,7 +443,7 @@ def parse_coordinate_string(coordinates):
         return (int(x), int(y))
 
     (xy1, xy2) = (split_xy(xy1), split_xy(xy2))
-    log.debug('Parsed coordinates %s into %s %s', coordinates, xy1, xy2)
+    # log.debug('Parsed coordinates %s into %s %s', coordinates, xy1, xy2)
     return (xy1, xy2)
 
 def overview_argparse(args):
@@ -507,7 +511,8 @@ def update_argparse(args):
         bigchunk_range = chunk_range_to_bigchunk_range(*coordinates)
     else:
         bigchunk_range = pixel_range_to_bigchunk_range(*coordinates)
-    download_bigchunk_range(*bigchunk_range)
+    chunks = download_bigchunk_range(*bigchunk_range)
+    insert_chunks(chunks)
 
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers()
