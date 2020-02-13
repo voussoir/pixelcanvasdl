@@ -511,7 +511,7 @@ def render_argparse(args):
     scale = float(args.scale)
     image = chunks_to_image(chunks, scale=scale)
 
-    if scale == 1:
+    if scale == 1 and not args.is_chunks:
         image = crop_image(image, *coordinates)
 
     if args.do_show:
