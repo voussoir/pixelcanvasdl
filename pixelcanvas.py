@@ -186,10 +186,11 @@ def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2, threads=1):
 
     else:
         pool = threadpool.ThreadPool(size=threads)
-        jobs = []
-        for (x, y) in bigchunks:
-            job = pool.add(download_bigchunk, args=(x, y), name=(x, y))
-            jobs.append(job)
+        kwargss = [
+            {'function': download_bigchunk, 'args': (x, y), 'name': (x, y),}
+            for (x, y) in bigchunks
+        ]
+        jobs = pool.add_many(kwargss)
         for job in jobs:
             job.join()
             if job.exception:
