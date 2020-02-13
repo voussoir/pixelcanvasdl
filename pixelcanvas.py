@@ -414,6 +414,9 @@ update:
     --chunks:
         The coordinates which you provided are chunk coordinates instead of
         pixel coordinates.
+
+    --threads X:
+        Use X threads to download bigchunks.
 '''.strip(),
 
 render='''
