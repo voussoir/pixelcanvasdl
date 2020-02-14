@@ -535,7 +535,10 @@ def update_argparse(args):
     else:
         bigchunk_range = pixel_range_to_bigchunk_range(*coordinates)
     chunks = download_bigchunk_range(*bigchunk_range, threads=args.threads)
-    insert_chunks(chunks)
+    try:
+        insert_chunks(chunks)
+    except KeyboardInterrupt:
+        sql.commit()
 
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers()
