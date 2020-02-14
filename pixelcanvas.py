@@ -3,6 +3,7 @@ import datetime
 import gzip
 import logging
 import PIL.Image
+import random
 import requests
 import sqlite3
 import sys
@@ -169,12 +170,16 @@ def download_bigchunk(bigchunk_x, bigchunk_y):
     chunks = split_bigchunk(bigchunk_x, bigchunk_y, bigchunk_data)
     return chunks
 
-def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2, threads=1):
+def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2, shuffle=False, threads=1):
     '''
     Given (UPPERLEFT_X, UPPERLEFT_Y), (LOWERRIGHT_X, LOWERRIGHT_Y),
     download multiple bigchunks, and yield all of the small chunks.
     '''
     bigchunks = bigchunk_range_iterator(bigchunk_xy1, bigchunk_xy2)
+
+    if shuffle:
+        bigchunks = list(bigchunks)
+        random.shuffle(bigchunks)
 
     if threads < 1:
         raise ValueError(threads)
@@ -416,6 +421,9 @@ update:
         The coordinates which you provided are chunk coordinates instead of
         pixel coordinates.
 
+    --shuffle:
+        Download chunks in a random order instead of from corner to corner.
+
     --threads X:
         Use X threads to download bigchunks.
 '''.strip(),
@@ -534,7 +542,7 @@ def update_argparse(args):
         bigchunk_range = chunk_range_to_bigchunk_range(*coordinates)
     else:
         bigchunk_range = pixel_range_to_bigchunk_range(*coordinates)
-    chunks = download_bigchunk_range(*bigchunk_range, threads=args.threads)
+    chunks = download_bigchunk_range(*bigchunk_range, shuffle=args.shuffle, threads=args.threads)
     try:
         insert_chunks(chunks)
     except KeyboardInterrupt:
@@ -546,6 +554,7 @@ subparsers = parser.add_subparsers()
 p_update = subparsers.add_parser('update')
 p_update.add_argument('coordinates')
 p_update.add_argument('--chunks', dest='is_chunks', action='store_true')
+p_update.add_argument('--shuffle', dest='shuffle', action='store_true')
 p_update.add_argument('--threads', dest='threads', type=int, default=1)
 p_update.set_defaults(func=update_argparse)
 
