@@ -192,7 +192,6 @@ def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2, threads=1):
         ]
         jobs = pool.add_many(kwargss)
         while jobs:
-        for job in jobs:
             job = jobs.pop(0)
             job.join()
             if job.exception:
