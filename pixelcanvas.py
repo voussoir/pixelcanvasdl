@@ -140,7 +140,9 @@ def insert_chunk(chunk_x, chunk_y, data, commit=True):
         sql.commit()
 
 def insert_chunks(chunks, commit=True):
-    for chunk in chunks:
+    for (index, chunk) in enumerate(chunks):
+        if index % 25000 == 0 and commit:
+            sql.commit()
         insert_chunk(*chunk, commit=False)
     if commit:
         sql.commit()
