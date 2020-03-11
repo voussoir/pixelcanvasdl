@@ -550,31 +550,34 @@ def update_argparse(args):
     except KeyboardInterrupt:
         sql.commit()
 
-parser = argparse.ArgumentParser()
-subparsers = parser.add_subparsers()
-
-p_update = subparsers.add_parser('update')
-p_update.add_argument('coordinates')
-p_update.add_argument('--chunks', dest='is_chunks', action='store_true')
-p_update.add_argument('--shuffle', dest='shuffle', action='store_true')
-p_update.add_argument('--threads', dest='threads', type=int, default=1)
-p_update.set_defaults(func=update_argparse)
-
-p_render = subparsers.add_parser('render')
-p_render.add_argument('coordinates')
-p_render.add_argument('--chunks', dest='is_chunks', action='store_true')
-p_render.add_argument('--update', dest='do_update', action='store_true')
-p_render.add_argument('--show', dest='do_show', action='store_true')
-p_render.add_argument('--scale', dest='scale', default=1)
-p_render.set_defaults(func=render_argparse)
-
-p_overview = subparsers.add_parser('overview')
-p_overview.set_defaults(func=overview_argparse)
-
-@betterhelp.subparser_betterhelp(parser, main_docstring=DOCSTRING, sub_docstrings=SUB_DOCSTRINGS)
 def main(argv):
-    args = parser.parse_args(argv)
-    return args.func(args)
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+
+    p_update = subparsers.add_parser('update')
+    p_update.add_argument('coordinates')
+    p_update.add_argument('--chunks', dest='is_chunks', action='store_true')
+    p_update.add_argument('--shuffle', dest='shuffle', action='store_true')
+    p_update.add_argument('--threads', dest='threads', type=int, default=1)
+    p_update.set_defaults(func=update_argparse)
+
+    p_render = subparsers.add_parser('render')
+    p_render.add_argument('coordinates')
+    p_render.add_argument('--chunks', dest='is_chunks', action='store_true')
+    p_render.add_argument('--update', dest='do_update', action='store_true')
+    p_render.add_argument('--show', dest='do_show', action='store_true')
+    p_render.add_argument('--scale', dest='scale', default=1)
+    p_render.set_defaults(func=render_argparse)
+
+    p_overview = subparsers.add_parser('overview')
+    p_overview.set_defaults(func=overview_argparse)
+
+    return betterhelp.subparser_main(
+        argv,
+        parser,
+        main_docstring=DOCSTRING,
+        sub_docstrings=SUB_DOCSTRINGS,
+    )
 
 if __name__ == '__main__':
     raise SystemExit(main(sys.argv[1:]))
