@@ -51,3 +51,9 @@ Here are some things we might like to improve:
 - Some way to get a statistics overview or visual map of which chunks we have in the database, so we know what we're missing.
 - Render the image as it appeared at some point in the past, taking advantage of the `updated_at` column.
 - Probably never going to happen: A GUI application to browse the db just like the site.
+
+https://github.com/voussoir/pixelcanvasdl
+
+https://gitlab.com/voussoir/pixelcanvasdl
+
+https://codeberg.org/voussoir/pixelcanvasdl
