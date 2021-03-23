@@ -176,15 +176,14 @@ def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2, shuffle=False, threads=1
     Given (UPPERLEFT_X, UPPERLEFT_Y), (LOWERRIGHT_X, LOWERRIGHT_Y),
     download multiple bigchunks, and yield all of the small chunks.
     '''
+    if threads < 1:
+        raise ValueError(threads)
+
     log.debug('Downloading bigchunk range %s-%s', bigchunk_xy1, bigchunk_xy2)
     bigchunks = bigchunk_range_iterator(bigchunk_xy1, bigchunk_xy2)
-
     if shuffle:
         bigchunks = list(bigchunks)
         random.shuffle(bigchunks)
-
-    if threads < 1:
-        raise ValueError(threads)
 
     if threads == 1:
         for (x, y) in bigchunks:
@@ -193,13 +192,12 @@ def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2, shuffle=False, threads=1
 
     else:
         pool = threadpool.ThreadPool(size=threads)
-        kwargss = [
+        job_gen = (
             {'function': download_bigchunk, 'args': (x, y), 'name': (x, y),}
             for (x, y) in bigchunks
-        ]
-        jobs = pool.add_many(kwargss)
-        while jobs:
-            job = jobs.pop(0)
+        )
+        pool.add_generator(job_gen)
+        for job in pool.result_generator():
             job.join()
             if job.exception:
                 raise job.exception
