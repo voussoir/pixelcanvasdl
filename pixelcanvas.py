@@ -328,7 +328,7 @@ def chunk_to_image(chunk_data, scale=1):
     image = rgb_to_image(chunk_to_rgb(chunk_data))
     if scale is not None and scale != 1:
         new_size = (int(image.size[0] * scale), int(image.size[1] * scale))
-        image = image.resize(new_size, resample=PIL.Image.ANTIALIAS)
+        image = image.resize(new_size, resample=PIL.Image.NEAREST)
     return image
 
 def chunks_to_image(chunks, scale=1):
