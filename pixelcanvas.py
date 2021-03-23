@@ -402,7 +402,7 @@ So, for example:
     > pixelcanvas.py update ~1200.300--~900.600
 
     > pixelcanvas.py render 0.0--100.100
-    > pixelcanvas.py render ~100.~100--100.100 --update
+    > pixelcanvas.py render ~100.~100--100.100 --scale 2
     > pixelcanvas.py render ~1200.300--~900.600 --show
 '''
 
@@ -449,9 +449,6 @@ render:
     --show:
         Instead of saving the image, display it on the screen.
         https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.show
-
-    --update:
-        Update the chunks before exporting them.
 '''.strip(),
 )
 
@@ -512,9 +509,6 @@ def overview_argparse(args):
         print()
 
 def render_argparse(args):
-    if args.do_update:
-        update_argparse(args)
-
     coordinates = parse_coordinate_string(args.coordinates)
     if args.is_chunks:
         chunk_range = coordinates
@@ -564,7 +558,6 @@ def main(argv):
     p_render = subparsers.add_parser('render')
     p_render.add_argument('coordinates')
     p_render.add_argument('--chunks', dest='is_chunks', action='store_true')
-    p_render.add_argument('--update', dest='do_update', action='store_true')
     p_render.add_argument('--show', dest='do_show', action='store_true')
     p_render.add_argument('--scale', dest='scale', default=1)
     p_render.set_defaults(func=render_argparse)
