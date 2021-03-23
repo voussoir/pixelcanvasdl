@@ -40,7 +40,6 @@ So, for example:
     > pixelcanvas.py update ~1200.300--~900.600
 
     > pixelcanvas.py render 0.0--100.100
-    > pixelcanvas.py render ~100.~100--100.100 --update
     > pixelcanvas.py render ~1200.300--~900.600 --show
     > pixelcanvas.py render ~2000.2000--2000.2000 --scale 0.25
 
