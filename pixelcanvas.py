@@ -1,7 +1,6 @@
 import argparse
 import datetime
 import gzip
-import logging
 import PIL.Image
 import random
 import requests
@@ -10,11 +9,9 @@ import sys
 import time
 
 from voussoirkit import threadpool
+from voussoirkit import vlogging
 
-logging.basicConfig(level=logging.DEBUG)
-log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
-logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
+log = vlogging.getLogger(__name__, 'pixelcanvasdl')
 
 WHITE = (255, 255, 255)
 LIGHTGRAY = (228, 228, 228)
@@ -164,7 +161,7 @@ def download_bigchunk(bigchunk_x, bigchunk_y):
     Download a bigchunk and return the list of chunks.
     '''
     url = url_for_bigchunk(bigchunk_x, bigchunk_y)
-    logging.info('Downloading %s', url)
+    log.info('Downloading %s', url)
     response = request(url)
     bigchunk_data = response.content
     if len(bigchunk_data) != BIGCHUNK_SIZE_BYTES:
@@ -179,6 +176,7 @@ def download_bigchunk_range(bigchunk_xy1, bigchunk_xy2, shuffle=False, threads=1
     Given (UPPERLEFT_X, UPPERLEFT_Y), (LOWERRIGHT_X, LOWERRIGHT_Y),
     download multiple bigchunks, and yield all of the small chunks.
     '''
+    log.debug('Downloading bigchunk range %s-%s', bigchunk_xy1, bigchunk_xy2)
     bigchunks = bigchunk_range_iterator(bigchunk_xy1, bigchunk_xy2)
 
     if shuffle:
@@ -547,6 +545,9 @@ def update_argparse(args):
         sql.commit()
 
 def main(argv):
+    argv = vlogging.set_level_by_argv(log, argv)
+    vlogging.getLogger('urllib3.connectionpool').setLevel(vlogging.CRITICAL)
+
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
