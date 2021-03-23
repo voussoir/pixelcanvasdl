@@ -83,6 +83,8 @@ sql = sqlite3.connect('pixelcanvas.db')
 cur = sql.cursor()
 cur.executescript(DB_INIT)
 
+session = requests.Session()
+
 # HELPER FUNCTIONS
 ################################################################################
 def now():
@@ -153,7 +155,7 @@ def url_for_bigchunk(bigchunk_x, bigchunk_y):
     return f'http://api.pixelcanvas.io/api/bigchunk/{bigchunk_x}.{bigchunk_y}.bmp'
 
 def request(url):
-    response = requests.get(url)
+    response = session.get(url)
     response.raise_for_status()
     return response
 
