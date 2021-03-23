@@ -90,6 +90,10 @@ def now():
 
 # DB FUNCTIONS
 ################################################################################
+def db_commit():
+    log.debug('Committing')
+    sql.commit()
+
 def get_chunk_from_db(chunk_x, chunk_y, as_of=None):
     '''
     Get the chunk from the database, and raise IndexError if it doesn't exist.
@@ -132,19 +136,19 @@ def insert_chunk(chunk_x, chunk_y, data, commit=True):
     else:
         if data == existing_chunk[2]:
             return
-    # log.debug('Updating chunk %s %s', chunk_x, chunk_y)
+    log.debug('Updating chunk %s %s', chunk_x, chunk_y)
     data = gzip.compress(data)
     cur.execute('INSERT INTO chunks VALUES(?, ?, ?, ?)', [chunk_x, chunk_y, data, now()])
     if commit:
-        sql.commit()
+        db_commit()
 
 def insert_chunks(chunks, commit=True):
     for (index, chunk) in enumerate(chunks):
         if index % 25000 == 0 and commit:
-            sql.commit()
+            db_commit()
         insert_chunk(*chunk, commit=False)
     if commit:
-        sql.commit()
+        db_commit()
 
 # API FUNCTIONS
 ################################################################################
@@ -226,7 +230,7 @@ def bigchunk_range_iterator(bigchunk_xy1, bigchunk_xy2):
 def chunk_to_bigchunk(chunk_x, chunk_y):
     bigchunk_x = (chunk_x // BIGCHUNK_SIZE_CHUNKS) * BIGCHUNK_SIZE_CHUNKS
     bigchunk_y = (chunk_y // BIGCHUNK_SIZE_CHUNKS) * BIGCHUNK_SIZE_CHUNKS
-    # log.debug('Converted chunk %s, %s to bigchunk %s, %s', chunk_x, chunk_y, bigchunk_x, bigchunk_y)
+    log.loud('Converted chunk %s, %s to bigchunk %s, %s', chunk_x, chunk_y, bigchunk_x, bigchunk_y)
     return (bigchunk_x, bigchunk_y)
 
 def chunk_range_to_bigchunk_range(chunk_xy1, chunk_xy2):
@@ -236,7 +240,7 @@ def chunk_range_to_bigchunk_range(chunk_xy1, chunk_xy2):
 def chunk_to_pixel(chunk_x, chunk_y):
     pixel_x = chunk_x * CHUNK_SIZE_PIX - ORIGIN_OFFSET_X
     pixel_y = chunk_y * CHUNK_SIZE_PIX - ORIGIN_OFFSET_Y
-    # log.debug('Converted chunk %s, %s to pixel %s, %s', chunk_x, chunk_y, pixel_x, pixel_y)
+    log.loud('Converted chunk %s, %s to pixel %s, %s', chunk_x, chunk_y, pixel_x, pixel_y)
     return (pixel_x, pixel_y)
 
 def chunk_range_to_pixel_range(chunk_xy1, chunk_xy2):
@@ -246,23 +250,23 @@ def chunk_range_to_pixel_range(chunk_xy1, chunk_xy2):
 def pixel_to_chunk(pixel_x, pixel_y):
     chunk_x = (pixel_x + ORIGIN_OFFSET_X) // CHUNK_SIZE_PIX
     chunk_y = (pixel_y + ORIGIN_OFFSET_Y) // CHUNK_SIZE_PIX
-    # log.debug('Converted pixel %s, %s to chunk %s, %s', pixel_x, pixel_y, chunk_x, chunk_y)
+    log.loud('Converted pixel %s, %s to chunk %s, %s', pixel_x, pixel_y, chunk_x, chunk_y)
     return (chunk_x, chunk_y)
 
 def pixel_range_to_chunk_range(pixel_xy1, pixel_xy2):
     chunk_range = (pixel_to_chunk(*pixel_xy1), pixel_to_chunk(*pixel_xy2))
-    # log.debug('Converted pixel range %s, %s to chunk range %s, %s', pixel_xy1, pixel_xy2, *chunk_range)
+    log.loud('Converted pixel range %s, %s to chunk range %s, %s', pixel_xy1, pixel_xy2, *chunk_range)
     return chunk_range
 
 def pixel_to_bigchunk(pixel_x, pixel_y):
     bigchunk_x = ((pixel_x + ORIGIN_OFFSET_X) // BIGCHUNK_SIZE_PIX) * BIGCHUNK_SIZE_CHUNKS
     bigchunk_y = ((pixel_y + ORIGIN_OFFSET_Y) // BIGCHUNK_SIZE_PIX) * BIGCHUNK_SIZE_CHUNKS
-    # log.debug('Converted pixel %s, %s to bigchunk %s, %s', pixel_x, pixel_y, bigchunk_x, bigchunk_y)
+    log.loud('Converted pixel %s, %s to bigchunk %s, %s', pixel_x, pixel_y, bigchunk_x, bigchunk_y)
     return (bigchunk_x, bigchunk_y)
 
 def pixel_range_to_bigchunk_range(pixel_xy1, pixel_xy2):
     bigchunk_range = (pixel_to_bigchunk(*pixel_xy1), pixel_to_bigchunk(*pixel_xy2))
-    # log.debug('Converted pixel range %s, %s to bigchunk range %s, %s', pixel_xy1, pixel_xy2, *bigchunk_range)
+    log.loud('Converted pixel range %s, %s to bigchunk range %s, %s', pixel_xy1, pixel_xy2, *bigchunk_range)
     return bigchunk_range
 
 def split_bigchunk(bigchunk_x, bigchunk_y, bigchunk_data):
@@ -471,7 +475,7 @@ def parse_coordinate_string(coordinates):
         return (int(x), int(y))
 
     (xy1, xy2) = (split_xy(xy1), split_xy(xy2))
-    # log.debug('Parsed coordinates %s into %s %s', coordinates, xy1, xy2)
+    log.debug('Parsed coordinates %s into %s %s', coordinates, xy1, xy2)
     return (xy1, xy2)
 
 def overview_argparse(args):
@@ -540,7 +544,7 @@ def update_argparse(args):
     try:
         insert_chunks(chunks)
     except KeyboardInterrupt:
-        sql.commit()
+        db_commit()
 
 def main(argv):
     argv = vlogging.set_level_by_argv(log, argv)
