@@ -547,7 +547,7 @@ def update_argparse(args):
         db_commit()
 
 def main(argv):
-    argv = vlogging.set_level_by_argv(log, argv)
+    argv = vlogging.main_level_by_argv(argv)
     vlogging.getLogger('urllib3.connectionpool').setLevel(vlogging.CRITICAL)
 
     parser = argparse.ArgumentParser()
