@@ -12,6 +12,7 @@ from voussoirkit import threadpool
 from voussoirkit import vlogging
 
 log = vlogging.getLogger(__name__, 'pixelcanvasdl')
+vlogging.getLogger('urllib3.connectionpool').setLevel(vlogging.CRITICAL)
 
 WHITE = (255, 255, 255)
 LIGHTGRAY = (228, 228, 228)
@@ -546,10 +547,8 @@ def update_argparse(args):
     except KeyboardInterrupt:
         db_commit()
 
+@vlogging.main_decorator
 def main(argv):
-    argv = vlogging.main_level_by_argv(argv)
-    vlogging.getLogger('urllib3.connectionpool').setLevel(vlogging.CRITICAL)
-
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
