@@ -378,85 +378,6 @@ def crop_image(image, pixel_xy1, pixel_xy2):
 ################################################################################
 from voussoirkit import betterhelp
 
-DOCSTRING = '''
-This tool is run from the command line, where you provide the coordinates you
-want to download and render.
-
-The format for typing coordinates is `UPPERLEFT--LOWERRIGHT`. The format for
-each of those pieces is `X.Y`.
-
-Sometimes, argparse gets confused by negative coordinates because it thinks
-you're trying to provide another argument. Sorry.
-If this happens, use a tilde `~` as the negative sign instead.
-
-Remember, because this is an image, up and left are negative;
-down and right are positive.
-
-Commands:
-
-{update}
-
-{render}
-
-So, for example:
-
-    > pixelcanvas.py update 0.0--100.100
-    > pixelcanvas.py update ~100.~100--100.100
-    > pixelcanvas.py update ~1200.300--~900.600
-
-    > pixelcanvas.py render 0.0--100.100
-    > pixelcanvas.py render ~100.~100--100.100 --scale 2
-    > pixelcanvas.py render ~1200.300--~900.600 --show
-'''
-
-SUB_DOCSTRINGS = dict(
-overview='''
-overview:
-    Draw an ascii map representing the owned chunks.
-'''.strip(),
-
-update='''
-update:
-    Download chunks into the database.
-
-    > pixelcanvas.py update ~100.~100--100.100
-
-    flags:
-    --chunks:
-        The coordinates which you provided are chunk coordinates instead of
-        pixel coordinates.
-
-    --shuffle:
-        Download chunks in a random order instead of from corner to corner.
-
-    --threads X:
-        Use X threads to download bigchunks.
-'''.strip(),
-
-render='''
-render:
-    Export an image as PNG.
-
-    > pixelcanvas.py render 0.0--100.100 <flags>
-
-    flags:
-    --chunks:
-        The coordinates which you provided are chunk coordinates instead of
-        pixel coordinates.
-
-    --scale <float>:
-        Render the image at a different scale.
-        For best results, use powers of 2 like 0.5, 0.25, etc.
-        This will disable the autocropping.
-
-    --show:
-        Instead of saving the image, display it on the screen.
-        https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.show
-'''.strip(),
-)
-
-DOCSTRING = betterhelp.add_previews(DOCSTRING, SUB_DOCSTRINGS)
-
 def parse_coordinate_string(coordinates):
     '''
     Convert the given '~100.~100--100.100' to ((-100, -100), (100, 100)).
@@ -520,17 +441,16 @@ def render_argparse(args):
         chunk_range = pixel_range_to_chunk_range(*coordinates)
 
     chunks = [get_chunk(*chunk_xy) for chunk_xy in chunk_range_iterator(*chunk_range)]
-    scale = float(args.scale)
-    image = chunks_to_image(chunks, scale=scale)
+    image = chunks_to_image(chunks, scale=args.scale)
 
-    if scale == 1 and not args.is_chunks:
+    if args.scale == 1 and not args.is_chunks:
         image = crop_image(image, *coordinates)
 
     if args.do_show:
         image.show()
     else:
         ((p1x, p1y), (p2x, p2y)) = coordinates
-        scale_s = f'_{scale}' if scale != 1 else ''
+        scale_s = f'_{args.scale}' if args.scale != 1 else ''
         filename = f'{p1x}.{p1y}--{p2x}.{p2y}{scale_s}.png'
         image.save(filename)
         log.debug('Wrote %s', filename)
@@ -549,32 +469,124 @@ def update_argparse(args):
 
 @vlogging.main_decorator
 def main(argv):
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description='''
+        This tool is run from the command line, where you provide the coordinates you
+        want to download and render.
+
+        The format for coordinates is `UPPERLEFT--LOWERRIGHT`. The format for each
+        of those pieces is `X.Y`.
+
+        Sometimes, argparse gets confused by negative coordinates because it thinks
+        you're trying to provide another argument. If this happens, use a tilde `~`
+        as the negative sign instead.
+
+        Remember, because this is an image, up and left are negative; down and right
+        are positive.
+        ''',
+    )
     subparsers = parser.add_subparsers()
 
-    p_update = subparsers.add_parser('update')
-    p_update.add_argument('coordinates')
-    p_update.add_argument('--chunks', dest='is_chunks', action='store_true')
-    p_update.add_argument('--shuffle', dest='shuffle', action='store_true')
-    p_update.add_argument('--threads', dest='threads', type=int, default=1)
+    ################################################################################################
+
+    p_update = subparsers.add_parser(
+        'update',
+        description='''
+        Download chunks into the database.
+        ''',
+    )
+    p_update.examples = [
+        '0.0--100.100',
+        '~100.~100--100.100',
+        '~1200.300--~900.600',
+    ]
+    p_update.add_argument(
+        'coordinates',
+    )
+    p_update.add_argument(
+        '--chunks',
+        dest='is_chunks',
+        action='store_true',
+        help='''
+        The coordinates which you provided are chunk coordinates instead of
+        pixel coordinates.
+        ''',
+    )
+    p_update.add_argument(
+        '--shuffle',
+        action='store_true',
+        help='''
+        Download chunks in a random order instead of from corner to corner.
+        ''',
+    )
+    p_update.add_argument(
+        '--threads',
+        type=int,
+        default=1,
+        help='''
+        Use X threads to download bigchunks.
+        ''',
+    )
     p_update.set_defaults(func=update_argparse)
 
-    p_render = subparsers.add_parser('render')
-    p_render.add_argument('coordinates')
-    p_render.add_argument('--chunks', dest='is_chunks', action='store_true')
-    p_render.add_argument('--show', dest='do_show', action='store_true')
-    p_render.add_argument('--scale', dest='scale', default=1)
+    ################################################################################################
+
+    p_render = subparsers.add_parser(
+        'render',
+        description='''
+        Export an image as PNG.
+        ''',
+    )
+    p_render.examples = [
+        '0.0--100.100',
+        '~100.~100--100.100 --scale 2',
+        '~1200.300--~900.600 --show',
+    ]
+    p_render.add_argument(
+        'coordinates',
+    )
+    p_render.add_argument(
+        '--chunks',
+        dest='is_chunks',
+        action='store_true',
+        help='''
+        The coordinates which you provided are chunk coordinates instead of
+        pixel coordinates.
+        ''',
+    )
+    p_render.add_argument(
+        '--show',
+        dest='do_show',
+        action='store_true',
+        help='''
+        Render the image at a different scale.
+        For best results, use powers of 2 like 0.5, 0.25, etc.
+        This will disable the autocropping.
+        ''',
+    )
+    p_render.add_argument(
+        '--scale',
+        dest='scale',
+        type=float,
+        default=1,
+        help='''
+        Instead of saving the image, display it on the screen.
+        pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.show
+        ''',
+    )
     p_render.set_defaults(func=render_argparse)
 
-    p_overview = subparsers.add_parser('overview')
+    ################################################################################################
+
+    p_overview = subparsers.add_parser(
+        'overview',
+        help='''
+        Draw an ascii map representing the owned chunks.
+        ''',
+    )
     p_overview.set_defaults(func=overview_argparse)
 
-    return betterhelp.subparser_main(
-        argv,
-        parser,
-        main_docstring=DOCSTRING,
-        sub_docstrings=SUB_DOCSTRINGS,
-    )
+    return betterhelp.go(parser, argv)
 
 if __name__ == '__main__':
     raise SystemExit(main(sys.argv[1:]))
