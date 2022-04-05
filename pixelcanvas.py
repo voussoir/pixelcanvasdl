@@ -8,6 +8,7 @@ import sqlite3
 import sys
 import time
 
+from voussoirkit import operatornotify
 from voussoirkit import threadpool
 from voussoirkit import vlogging
 
@@ -431,6 +432,7 @@ def overview_argparse(args):
         for column in row:
             print(column, end='')
         print()
+    return 0
 
 def render_argparse(args):
     coordinates = parse_coordinate_string(args.coordinates)
@@ -454,6 +456,7 @@ def render_argparse(args):
         filename = f'{p1x}.{p1y}--{p2x}.{p2y}{scale_s}.png'
         image.save(filename)
         log.debug('Wrote %s', filename)
+    return 0
 
 def update_argparse(args):
     coordinates = parse_coordinate_string(args.coordinates)
@@ -466,7 +469,9 @@ def update_argparse(args):
         insert_chunks(chunks)
     except KeyboardInterrupt:
         db_commit()
+    return 0
 
+@operatornotify.main_decorator(subject='pixelcanvasdl')
 @vlogging.main_decorator
 def main(argv):
     parser = argparse.ArgumentParser(
