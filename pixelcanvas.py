@@ -154,7 +154,7 @@ def insert_chunks(chunks, commit=True):
 # API FUNCTIONS
 ################################################################################
 def url_for_bigchunk(bigchunk_x, bigchunk_y):
-    return f'http://api.pixelcanvas.io/api/bigchunk/{bigchunk_x}.{bigchunk_y}.bmp'
+    return f'http://pixelcanvas.io/api/bigchunk/{bigchunk_x}.{bigchunk_y}.bmp'
 
 def request(url):
     response = session.get(url)
