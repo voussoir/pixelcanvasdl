@@ -53,6 +53,8 @@ Here are some things we might like to improve:
 
 ## Mirrors
 
+https://git.voussoir.net/voussoir/pixelcanvasdl
+
 https://github.com/voussoir/pixelcanvasdl
 
 https://gitlab.com/voussoir/pixelcanvasdl
