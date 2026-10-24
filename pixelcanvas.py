@@ -472,7 +472,7 @@ def update_argparse(args):
     return 0
 
 @operatornotify.main_decorator(subject='pixelcanvasdl')
-@vlogging.main_decorator
+@vlogging.main_decorator(log=log)
 def main(argv):
     parser = argparse.ArgumentParser(
         description='''
